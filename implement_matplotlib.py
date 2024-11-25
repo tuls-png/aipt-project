@@ -1,87 +1,111 @@
+
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
+import itertools
 
-def analyze_data(file_path):
-    try:
-        df = pd.read_csv(file_path)
-        print("Dataset loaded successfully!")
-    except Exception as e:
-        print(f"Error loading dataset: {e}")
-        return
-    
-    # Data Cleaning
-    print("\n--- Data Cleaning ---")
-    print("Initial data overview:")
-    print(df.info())
-    
-    # Handling missing values
-    missing_values = df.isnull().sum()
-    print("\nMissing values per column:")
-    print(missing_values)
-    
-    for col in df.columns:
-        if df[col].dtype in ['int64', 'float64']:
-            df[col].fillna(df[col].mean(), inplace=True)
-        else:
-            df[col].fillna(df[col].mode()[0], inplace=True)
-    
-    print("\nMissing values handled.")
-    
-    # Removing duplicates
-    initial_shape = df.shape
-    df.drop_duplicates(inplace=True)
-    final_shape = df.shape
-    print(f"Removed {initial_shape[0] - final_shape[0]} duplicate rows.")
-    
-    # Data Preprocessing
-    print("\n--- Data Preprocessing ---")
-    print("Descriptive statistics:")
-    print(df.describe())
-    
-    # Encoding categorical variables if any
-    categorical_cols = df.select_dtypes(include=['object']).columns
-    if len(categorical_cols) > 0:
-        df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
-        print(f"\nCategorical columns {list(categorical_cols)} encoded.")
-    else:
-        print("No categorical columns found.")
-    
-    # Normalizing numeric columns
-    numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
-    df[numeric_cols] = (df[numeric_cols] - df[numeric_cols].min()) / (df[numeric_cols].max() - df[numeric_cols].min())
-    print("Numeric columns normalized.")
-    
-    # Data Analysis and Visualization
-    print("\n--- Data Analysis and Visualization ---")
-    
-    # Plotting correlations
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(df.corr(), annot=True, cmap='coolwarm', fmt=".2f")
-    plt.title("Correlation Matrix")
-    plt.show()
-    
-    # Histogram of all numeric columns
-    df[numeric_cols].hist(figsize=(12, 10), bins=15, color='skyblue', edgecolor='black')
-    plt.suptitle("Histogram of Numeric Features")
-    plt.show()
-    
-    # Scatter plots for top correlations
-    correlations = df.corr().unstack().sort_values(ascending=False)
-    strong_pairs = correlations[(correlations > 0.5) & (correlations < 1)]
-    
-    if len(strong_pairs) > 0:
-        for (col1, col2), corr_value in strong_pairs.items():
-            plt.figure(figsize=(6, 4))
-            sns.scatterplot(data=df, x=col1, y=col2, alpha=0.7)
-            plt.title(f"Scatter Plot: {col1} vs {col2} (Correlation = {corr_value:.2f})")
-            plt.show()
-    else:
-        print("No strong correlations found for scatter plots.")
-    
-    print("Analysis complete!")
+class DataProcessor:
+    def __init__(self, file_path, target_column):
+        self.file_path = file_path
+        self.target_column = target_column
+        self.df = None
+        self.num_cols = None
+        self.cat_cols = None
 
-# Example usage
-file_path = r'C:\Users\tulik\Desktop\IGDTUW\AI PT\aipt_lab.csv' # Replace with your dataset's file path
-analyze_data(file_path)
+    def load_data(self):
+        self.df = pd.read_csv(self.file_path)
+        self.num_cols = self.df.select_dtypes(include=np.number).columns.tolist()
+        self.cat_cols = self.df.select_dtypes(include=['object']).columns
+        return self.df
+
+    def describe_data(self, output_file):
+        with open(output_file, "w") as file:
+            file.write("Dataset Info:\n")
+            self.df.info(buf=file)
+            file.write("\n\nDescription:\n")
+            file.write(str(self.df.describe(include='all').T))
+
+    def normalize_data(self):
+        self.df[self.num_cols] = (self.df[self.num_cols] - self.df[self.num_cols].min()) / (self.df[self.num_cols].max() - self.df[self.num_cols].min())
+        print("Normalization complete.")
+
+class Visualizer:
+    def __init__(self, data_processor):
+        self.df = data_processor.df
+        self.output_dir = f"output_plots_{file_name}"
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def save_and_show_plot(self, plot_func, title, filename, *args, **kwargs):
+        plt.figure()
+        plot_func(*args, **kwargs)
+        plt.title(title)
+        plt.savefig(os.path.join(self.output_dir, filename))
+        plt.show()
+        plt.close()
+
+
+    def plot_distributions(self):
+        for col in self.df.columns:
+            if self.df[col].dtype in ['int64', 'float64']:
+                self.save_and_show_plot(
+                    self.df[col].hist,
+                    title=f"Distribution of {col}",
+                    filename=f"{col}_distribution.png",
+                    bins=10, color="#87CEEB", edgecolor="black"
+                )
+            else:
+                self.save_and_show_plot(
+                    self.df[col].value_counts().plot,
+                    title=f"Bar Chart of {col}",
+                    filename=f"{col}_bar.png",
+                    kind="bar", color="#FFA07A", edgecolor="black"
+                )
+
+
+    def correlation_heatmap(self):
+        # Select numeric columns only
+        numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns
+        corr_matrix = self.df[numeric_columns].corr()
+
+        self.save_and_show_plot(
+            plot_func=lambda: sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5),
+            title="Correlation Heatmap",
+            filename="correlation_heatmap.png"
+        )
+
+
+    def scatter_plots(self):
+        numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+        for col1, col2 in itertools.combinations(numeric_columns, 2):
+            self.save_and_show_plot(
+                plot_func=lambda: sns.scatterplot(x=self.df[col1], y=self.df[col2], color="skyblue", alpha=0.7),
+                title=f"Scatter Plot: {col1} vs {col2}",
+                filename=f"scatter_{col1}_vs_{col2}.png"
+            )
+
+
+    def pie_chart(self, column):
+        self.save_and_show_plot(
+            plot_func=lambda: self.df[column].value_counts().plot(kind="pie", autopct='%1.1f%%', startangle=90),
+            title=f"Pie Chart of {column}",
+            filename=f"{column}_pie_chart.png"
+        )
+
+
+file_name = 'customer_demographics_purchase'
+file_path = rf"C:\Users\tulik\Desktop\IGDTUW\AI PT\aipt-project\{file_name}.csv"
+
+processor = DataProcessor(file_path, "purchase amount")
+
+processor.load_data()
+processor.describe_data(f"{file_name}_summary.txt")
+processor.normalize_data()
+
+visualizer = Visualizer(processor)
+visualizer.plot_distributions()
+visualizer.correlation_heatmap()
+visualizer.scatter_plots()
+visualizer.pie_chart(processor.target_column)
