@@ -1,4 +1,3 @@
-
 import os
 import pandas as pd
 import numpy as np
@@ -42,10 +41,11 @@ class Visualizer:
         plt.figure()
         plot_func(*args, **kwargs)
         plt.title(title)
+        # Ensure the directory exists before saving the plot
+        os.makedirs(os.path.dirname(os.path.join(self.output_dir, filename)), exist_ok=True)
         plt.savefig(os.path.join(self.output_dir, filename))
         plt.show()
         plt.close()
-
 
     def plot_distributions(self):
         for col in self.df.columns:
@@ -64,7 +64,6 @@ class Visualizer:
                     kind="bar", color="#FFA07A", edgecolor="black"
                 )
 
-
     def correlation_heatmap(self):
         # Select numeric columns only
         numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns
@@ -76,7 +75,6 @@ class Visualizer:
             filename="correlation_heatmap.png"
         )
 
-
     def scatter_plots(self):
         numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns.tolist()
         for col1, col2 in itertools.combinations(numeric_columns, 2):
@@ -86,7 +84,6 @@ class Visualizer:
                 filename=f"scatter_{col1}_vs_{col2}.png"
             )
 
-
     def pie_chart(self, column):
         self.save_and_show_plot(
             plot_func=lambda: self.df[column].value_counts().plot(kind="pie", autopct='%1.1f%%', startangle=90),
@@ -94,11 +91,10 @@ class Visualizer:
             filename=f"{column}_pie_chart.png"
         )
 
-
-file_name = 'customer_demographics_purchase'
+file_name = 'exams'
 file_path = rf"C:\Users\tulik\Desktop\IGDTUW\AI PT\aipt-project\{file_name}.csv"
 
-processor = DataProcessor(file_path, "purchase amount")
+processor = DataProcessor(file_path, "math score")
 
 processor.load_data()
 processor.describe_data(f"{file_name}_summary.txt")
